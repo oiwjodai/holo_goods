@@ -52,16 +52,16 @@ sites:
       type: regex
       pattern: /pd/(\d+)/
   detail_batch_limit: 10
-- id: holoshop
-  monitor_url: https://shop.hololivepro.com/products.json?limit=60
-  parser: shopify
-  top_n: 40
-  state_file: state/holoshop_products.json
-  detail_delay_seconds: 0.6
-  detail_batch_limit: 10
-  parser_options:
-    base_url: https://shop.hololivepro.com/
-
+# - id: holoshop
+#   monitor_url: https://shop.hololivepro.com/products.json?limit=60
+#   parser: shopify
+#   top_n: 40
+#   state_file: state/holoshop_products.json
+#   detail_delay_seconds: 0.6
+#   detail_batch_limit: 10
+#   parser_options:
+#     base_url: https://shop.hololivepro.com/
+#
 - id: bandai_candy
   monitor_url: "https://www.bandai.co.jp/candy/characters/character462/index.html"
   parser: bandai_candy
