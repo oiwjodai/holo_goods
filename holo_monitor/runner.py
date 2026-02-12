@@ -38,20 +38,41 @@ def load_yaml(path: str) -> Dict[str, Any]:
     with open(path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
 
-def load_state(path: str) -> set:
+def load_state(path: str) -> tuple[set[str], str]:
     if not os.path.exists(path):
-        return set()
+        return set(), ""
     try:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
-        return set(data.get("ids", []) or data.get("gcodes", []))
+        if isinstance(data, dict):
+            ids = set(data.get("ids", []) or data.get("gcodes", []))
+            head_id = str(data.get("head_id", "") or "").strip()
+            return ids, head_id
     except Exception:
-        return set()
+        pass
+    return set(), ""
 
-def save_state(path: str, ids: set) -> None:
+
+def _item_id(item: Dict[str, Any]) -> str:
+    return str(item.get("id") or item.get("gcode") or "").strip()
+
+
+def _take_until_head(items: List[Dict[str, Any]], prev_head_id: str) -> List[Dict[str, Any]]:
+    if not prev_head_id:
+        return items
+    out: List[Dict[str, Any]] = []
+    for it in items:
+        if _item_id(it) == prev_head_id:
+            break
+        out.append(it)
+    return out
+
+
+def save_state(path: str, ids: set, head_id: str) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
-        json.dump({"ids": sorted(ids)}, f, ensure_ascii=False, indent=2)
+        json.dump({"ids": sorted(ids), "head_id": head_id}, f, ensure_ascii=False, indent=2)
+
 
 
 def fetch_html(url: str) -> str:
@@ -335,14 +356,19 @@ def run_site(site: Dict[str, Any], discord_env_url: str | None) -> None:
         filtered = items
         _log(site_id, f"No keywords configured; using {len(filtered)} item(s)")
 
-    prev = load_state(state_file)
-    _log(site_id, f"Loaded {len(prev)} previous id(s) from state")
+    prev, prev_head_id = load_state(state_file)
+    _log(site_id, f"Loaded {len(prev)} previous id(s) from state (head_id={prev_head_id or '-'})")
 
-    current = {it.get("id") or it.get("gcode") for it in filtered}
+    window = _take_until_head(filtered, prev_head_id)
+    if prev_head_id:
+        _log(site_id, f"Head cutoff applied: {len(window)} item(s) before previous head")
+
+    current = {_item_id(it) for it in filtered}
     current = {x for x in current if x}
     new_ids = current - prev
-    new_items = [it for it in filtered if (it.get("id") or it.get("gcode")) in new_ids]
+    new_items = [it for it in window if _item_id(it) in new_ids]
     _log(site_id, f"Current set size: {len(current)}; new items detected: {len(new_items)}")
+    new_head_id = _item_id(filtered[0]) if filtered else prev_head_id
 
     if new_items and webhook:
         _log(site_id, f"Sending Discord summary for {len(new_items)} new item(s)")
@@ -376,7 +402,7 @@ def run_site(site: Dict[str, Any], discord_env_url: str | None) -> None:
         _log(site_id, "Skipping hooks.on_change (no new items)")
 
     try:
-        save_state(state_file, current)
+        save_state(state_file, current, new_head_id)
         _log(site_id, f"State saved ({len(current)} id(s)) to {state_file}")
     except Exception as exc:
         _log(site_id, f"[ERROR] Failed to save state: {exc}")
@@ -408,4 +434,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
 
