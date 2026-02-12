@@ -2,16 +2,12 @@ from __future__ import annotations
 import os, json, re
 from typing import List, Dict, Any
 from urllib.parse import urljoin, urlparse, parse_qs
-from http.cookiejar import MozillaCookieJar, Cookie
-from pathlib import Path
 
 import requests
 from bs4 import BeautifulSoup
 import yaml
 
 from . import notify, hooks
-from .creds import get_secret
-from dotenv import load_dotenv
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36",
@@ -58,78 +54,6 @@ def save_state(path: str, ids: set) -> None:
         json.dump({"ids": sorted(ids)}, f, ensure_ascii=False, indent=2)
 
 
-def _attach_amiami_cookies(session: requests.Session) -> None:
-    """Attach cookies from a Netscape-format cookies.txt if available.
-    The path is resolved in this order:
-      1) env AMIAMI_COOKIES_FILE
-      2) env COOKIES_FILE
-      3) ./cookies/amiami_cookies.txt
-      4) ./cookies.txt
-    Only cookies whose domain contains 'amiami.jp' are applied.
-    """
-    candidates = []
-    env1 = os.environ.get("AMIAMI_COOKIES_FILE", "").strip()
-    env2 = os.environ.get("COOKIES_FILE", "").strip()
-    if env1:
-        candidates.append(Path(env1))
-    if env2:
-        candidates.append(Path(env2))
-    candidates.append(Path("cookies/amiami_cookies.txt"))
-    candidates.append(Path("cookies.txt"))
-    path: Path | None = None
-    for p in candidates:
-        try:
-            if p and p.exists() and p.is_file():
-                path = p
-                break
-        except Exception:
-            continue
-    if path:
-        try:
-            jar = MozillaCookieJar()
-            jar.load(str(path), ignore_discard=True, ignore_expires=True)
-            for c in jar:
-                try:
-                    if "amiami.jp" in (c.domain or ""):
-                        session.cookies.set_cookie(c)
-                except Exception:
-                    continue
-            return
-        except Exception:
-            # fall through to browser auto-detect
-            pass
-    # Optional: try to read cookies from installed Chrome/Edge via browser_cookie3 if available
-    try:
-        import browser_cookie3  # type: ignore
-        try:
-            cj = browser_cookie3.chrome(domain_name="amiami.jp")
-        except Exception:
-            cj = None
-        if cj:
-            for c in cj:
-                try:
-                    if "amiami.jp" in (getattr(c, 'domain', '') or ''):
-                        session.cookies.set_cookie(c)
-                except Exception:
-                    continue
-    except Exception:
-        # browser_cookie3 not available or failed; ignore silently
-        pass
-
-
-def _cookies_dict_for_domain(session: requests.Session, domain: str) -> Dict[str, str]:
-    out: Dict[str, str] = {}
-    try:
-        for c in session.cookies:
-            try:
-                if domain in (c.domain or "") and c.name and (c.value is not None):
-                    out[c.name] = c.value
-            except Exception:
-                continue
-    except Exception:
-        pass
-    return out
-
 def fetch_html(url: str) -> str:
     s = requests.Session()
     # warm-up: hit top to set cookies
@@ -149,8 +73,6 @@ def fetch_html(url: str) -> str:
         host, path = '', ''
 
     if host.endswith('amiami.jp') and '/top/detail/detail' in path:
-        # Attach browser-exported cookies if provided
-        _attach_amiami_cookies(s)
         # Simulate navigation from slist (same-site) and include modern fetch/client-hints headers
         slist_referer = "https://slist.amiami.jp/top/search/list?s_sortkey=regtimed&pagemax=60"
         try:
@@ -203,10 +125,9 @@ def fetch_html(url: str) -> str:
         try:
             from curl_cffi import requests as curl_requests  # type: ignore
             cr_headers = dict(h2)
-            cookies = _cookies_dict_for_domain(s, 'amiami.jp')
             for imp in ("chrome124", "chrome120"):
                 try:
-                    alt = curl_requests.get(url, headers=cr_headers, cookies=cookies, impersonate=imp, timeout=30)
+                    alt = curl_requests.get(url, headers=cr_headers, impersonate=imp, timeout=30)
                     if alt.status_code == 200 and (alt.text or "").strip():
                         return alt.text
                 except Exception:
@@ -462,17 +383,12 @@ def run_site(site: Dict[str, Any], discord_env_url: str | None) -> None:
         raise
 
 def main() -> None:
-    try:
-        load_dotenv()
-    except Exception:
-        pass
-
     cfg_path = os.environ.get("SITES_YAML", os.path.join(os.path.dirname(__file__), "sites.yaml"))
     cfg = (load_yaml(cfg_path) if os.path.exists(cfg_path) else {"sites": []})
     sites = cfg.get("sites", []) or []
     _log(None, f"Loaded {len(sites)} site(s) from {cfg_path}")
 
-    discord_env_url = os.environ.get("DISCORD_WEBHOOK_URL") or (get_secret("DISCORD_WEBHOOK_URL") or "")
+    discord_env_url = os.environ.get("DISCORD_WEBHOOK_URL", "")
     if discord_env_url:
         _log(None, "Using Discord webhook from environment/secret")
     else:
@@ -492,3 +408,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

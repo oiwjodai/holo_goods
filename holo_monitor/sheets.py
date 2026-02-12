@@ -1,11 +1,11 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 import os
 import re
 import unicodedata
 from typing import Dict, List, Tuple
 import gspread
 from google.oauth2.service_account import Credentials
-from .creds import ensure_gcp_credentials_path, get_secret
+from .creds import ensure_gcp_credentials_path
 
 
 SHEET_HEADERS = [
@@ -22,7 +22,7 @@ def _load_headers() -> List[str]:
 
 
 def _get_client() -> gspread.Client:
-    # Ensure we have a usable credential file (env or keyring-backed)
+    # Use credentials file path from environment
     cred_path = ensure_gcp_credentials_path()
     scopes = [
         'https://www.googleapis.com/auth/spreadsheets',
@@ -33,8 +33,7 @@ def _get_client() -> gspread.Client:
 
 
 def _open_worksheet(client: gspread.Client):
-    # GOOGLE_SHEETS_ID can come from ENV or keyring
-    sheet_id = os.environ.get('GOOGLE_SHEETS_ID') or get_secret('GOOGLE_SHEETS_ID')
+    sheet_id = os.environ.get('GOOGLE_SHEETS_ID', '').strip()
     if not sheet_id:
         raise RuntimeError('GOOGLE_SHEETS_ID is not set')
     # Resolve worksheet name with robust defaulting
