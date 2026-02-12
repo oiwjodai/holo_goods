@@ -1,12 +1,12 @@
 sites:
-- id: amiami
-  monitor_url: "https://slist.amiami.jp/top/search/list?s_sortkey=regtimed&s_originaltitle_id=26279&pagemax=60"
-  parser: amiami
-  top_n: 40
-  state_file: state/amiami_gcodes.json
-  discord_webhook: ''
-  detail_delay_seconds: 1.2
-  detail_batch_limit: 15
+# - id: amiami
+#   monitor_url: "https://slist.amiami.jp/top/search/list?s_sortkey=regtimed&s_originaltitle_id=26279&pagemax=60"
+#   parser: amiami
+#   top_n: 40
+#   state_file: state/amiami_gcodes.json
+#   discord_webhook: ''
+#   detail_delay_seconds: 1.2
+#   detail_batch_limit: 15
 - id: kotobukiya
   monitor_url: "https://shop.kotobukiya.co.jp/shop/goods/search.aspx?search_filter1=291&search.x=on"
   parser: generic
