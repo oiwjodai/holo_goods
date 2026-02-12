@@ -1,0 +1,72 @@
+sites:
+- id: amiami
+  monitor_url: "https://slist.amiami.jp/top/search/list?s_sortkey=regtimed&s_originaltitle_id=26279&pagemax=60"
+  parser: amiami
+  top_n: 40
+  state_file: state/amiami_gcodes.json
+  discord_webhook: ''
+  detail_delay_seconds: 1.2
+  detail_batch_limit: 15
+- id: kotobukiya
+  monitor_url: "https://shop.kotobukiya.co.jp/shop/goods/search.aspx?search_filter1=291&search.x=on"
+  parser: generic
+  top_n: 60
+  state_file: state/kotobukiya_ids.json
+  detail_delay_seconds: 0.8
+  selectors:
+    item: ul.cat_goods li.tile_item
+    link: a
+    title: .desc .name
+    price: .desc .price .amount_of_money
+    id:
+      type: regex
+      pattern: /shop/g/g(\d+)/
+  detail_batch_limit: 15
+- id: goodsmile
+  monitor_url: "https://www.goodsmile.com/ja/search/list?filter=%7B%22search_title%22%3A%5B1938%2C3172%5D%7D&orderBy=1&limit=60&offset=0&couponId=null&searchIndex=-1"
+  parser: generic
+  top_n: 60
+  state_file: state/goodsmile_ids.json
+  detail_delay_seconds: 0.6
+  selectors:
+    item: .p-product-list__item
+    link: a.p-product-list__link
+    title: .b-product-item__title h2
+    price: .b-product-item__price .c-price__main
+    id:
+      type: regex
+      pattern: /product/(\d+)
+  detail_batch_limit: 15
+- id: animate
+  monitor_url: "https://www.animate-onlineshop.jp/animetitle/index.php?aid=17387&nf=1&kw=&spc=&scc=&ssy=&ssm=&sey=&sem=&ss=5&sl=0"
+  parser: generic
+  top_n: 20
+  state_file: state/animate_ids.json
+  detail_delay_seconds: 0.8
+  selectors:
+    item: div.item_list > ul > li
+    link: div.item_list_thumb a
+    title: h3 a
+    price: div.item_list_detail p.price font
+    id:
+      type: regex
+      pattern: /pd/(\d+)/
+  detail_batch_limit: 10
+- id: holoshop
+  monitor_url: https://shop.hololivepro.com/products.json?limit=60
+  parser: shopify
+  top_n: 40
+  state_file: state/holoshop_products.json
+  detail_delay_seconds: 0.6
+  detail_batch_limit: 10
+  parser_options:
+    base_url: https://shop.hololivepro.com/
+
+- id: bandai_candy
+  monitor_url: "https://www.bandai.co.jp/candy/characters/character462/index.html"
+  parser: bandai_candy
+  top_n: 40
+  state_file: state/bandai_candy_ids.json
+  detail_delay_seconds: 0.6
+  detail_batch_limit: 10
+  # TODO: 必要に応じて monitor_url をカテゴリ/検索ページに変更してください

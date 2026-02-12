@@ -1,0 +1,74 @@
+name: monitor
+
+on:
+  push:
+    branches:
+      - work
+  schedule:
+    - cron: "0 */2 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    env:
+      # Expose secrets as env so expressions can test emptiness safely
+      GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
+      SHEETS_WORKSHEET_NAME: "シート1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: "requirements.txt"
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Prepare Google credentials (raw/base64/local supported)
+        run: |
+          set -e
+          mkdir -p secrets
+          if [ -f secrets/gcp-service-account.json ]; then
+            echo "Using existing credentials file in repo workspace"
+          elif [ -n "$GCP_SA_JSON" ]; then
+            # If starts with '{' assume raw JSON, otherwise try base64 then fallback to raw
+            if echo "$GCP_SA_JSON" | grep -q '^{'; then
+              printf "%s" "$GCP_SA_JSON" > secrets/gcp-service-account.json
+              echo "Wrote raw JSON credentials from secret"
+            else
+              if echo "$GCP_SA_JSON" | base64 -d > secrets/gcp-service-account.json 2>/dev/null; then
+                echo "Decoded base64 credentials from secret"
+              else
+                printf "%s" "$GCP_SA_JSON" > secrets/gcp-service-account.json
+                echo "Secret was not valid base64; wrote as raw JSON"
+              fi
+            fi
+          else
+            echo "No credentials provided via secret and no local file found; continuing"
+          fi
+      - name: Run monitor (Python)
+        env:
+          # Inherit DISCORD_WEBHOOK_URL and GOOGLE_SHEETS_ID from job env
+          GOOGLE_APPLICATION_CREDENTIALS: secrets/gcp-service-account.json
+        run: |
+          python -m holo_monitor.runner
+      - name: Commit state changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state || true
+          if git diff --cached --quiet; then
+            echo "No state changes"
+          else
+            git commit -m "monitor: update state [skip ci]"
+            git push
+          fi
