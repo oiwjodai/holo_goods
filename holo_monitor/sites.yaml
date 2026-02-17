@@ -52,6 +52,21 @@ sites:
       type: regex
       pattern: /pd/(\d+)/
   detail_batch_limit: 10
+- id: gamers
+  monitor_url: "https://www.gamers.co.jp/keyword/index.php?kid=13072&nf=1&smt=&ss=8&sl=2&kw=&spc=&scc=&ss=1&sl=1&nd%5B%5D=6&al=0"
+  parser: generic
+  top_n: 40
+  state_file: state/gamers_ids.json
+  detail_delay_seconds: 0.8
+  selectors:
+    item: ul.search_item_list > li.list_product
+    link: a[href*="/pd/"]
+    title: h3.item_list_ttl
+    price: p.price
+    id:
+      type: regex
+      pattern: /pd/(\d+)/
+  detail_batch_limit: 15
 # - id: holoshop
 #   monitor_url: https://shop.hololivepro.com/products.json?limit=60
 #   parser: shopify

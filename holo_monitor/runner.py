@@ -1,5 +1,5 @@
 from __future__ import annotations
-import os, json, re
+import os, json, re, sys
 from typing import List, Dict, Any
 from urllib.parse import urljoin, urlparse, parse_qs
 
@@ -408,11 +408,54 @@ def run_site(site: Dict[str, Any], discord_env_url: str | None) -> None:
         _log(site_id, f"[ERROR] Failed to save state: {exc}")
         raise
 
+def _cli_manual_url(argv: List[str]) -> str:
+    if not argv:
+        return ''
+    for i, arg in enumerate(argv):
+        if arg in ('--url', '-u') and i + 1 < len(argv):
+            return str(argv[i + 1] or '').strip()
+    first = str(argv[0] or '').strip()
+    if first.startswith('http://') or first.startswith('https://'):
+        return first
+    return ''
+
+
+def run_manual_url(url: str) -> None:
+    manual_url = str(url or '').strip()
+    if not manual_url:
+        _log('manual', 'MANUAL_ITEM_URL is empty; skipping')
+        return
+
+    _log('manual', f'Processing manual URL: {manual_url}')
+    try:
+        _, errors, wrote = hooks.on_change({'id': 'manual'}, [{'id': 'manual', 'url': manual_url, 'title': '', 'price': ''}])
+        _log('manual', f'Manual processing finished (wrote={wrote}, errors={len(errors)})')
+        if errors:
+            for err in errors[:3]:
+                _log('manual', f'[HOOK ERROR] {err}')
+            if len(errors) > 3:
+                _log('manual', f'[HOOK ERROR] ... ({len(errors) - 3} more)')
+    except Exception as exc:
+        _log('manual', f'[ERROR] Manual URL processing failed: {exc}')
+
+
 def main() -> None:
     cfg_path = os.environ.get("SITES_YAML", os.path.join(os.path.dirname(__file__), "sites.yaml"))
     cfg = (load_yaml(cfg_path) if os.path.exists(cfg_path) else {"sites": []})
     sites = cfg.get("sites", []) or []
     _log(None, f"Loaded {len(sites)} site(s) from {cfg_path}")
+
+    cli_url = _cli_manual_url(sys.argv[1:])
+    if cli_url:
+        _log(None, "CLI manual URL is set; running manual single-item mode")
+        run_manual_url(cli_url)
+        return
+
+    manual_url = os.environ.get("MANUAL_ITEM_URL", "").strip()
+    if manual_url:
+        _log(None, "MANUAL_ITEM_URL is set; running manual single-item mode")
+        run_manual_url(manual_url)
+        return
 
     discord_env_url = os.environ.get("DISCORD_WEBHOOK_URL", "")
     if discord_env_url:
